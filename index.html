@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interactive Ocean Food Web</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #e0f7fa;
+      margin: 0;
+      overflow: hidden;
+    }
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      transition: width 2s, height 2s, transform 2s; 
+      pointer-events: none; /* make svg not block clicks */
+    }
+    .organism {
+      cursor: pointer;
+      transition: transform 0.3s;
+      transition: width 2s, height 2s, transform 2s; 
+    }
+    .organism:hover {
+      transform: scale(1.1);
+    }
+    .label {
+      text-anchor: middle;
+      font-size: 14px;
+      font-weight: bold;
+      fill: black;
+
+    }
+    .tooltip {
+      visibility: hidden;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px;
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 12px;
+      border-radius: 5px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .line-group {
+      display: none;
+    }
+    .line-group.active {
+      display: inline;
+    }
+        .hidden-line {
+            visibility: hidden; 
+        }
+        /* Hover interaction for decomposer lines */
+        .organism-group:hover ~ .decomposer-line {
+            visibility: visible; 
+        }
+
+    /* Decomposer lines visibility when hovering over the organisms */
+    .organism:hover ~ .decomposer-line {
+      visibility: visible;
+      stroke-dasharray: 0;
+      stroke: #212121;
+      transition: stroke 0.3s, visibility 0.3s;
+    }
+    /* Decomposers themselves should be visible on hover */
+    .organism:hover ~ .decomposer {
+      visibility: visible;
+    }
+
+.decomposer-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  transition: stroke-dashoffset 1s ease, visibility 0.3s;
+}
+
+.organism, #toggle-decomposer, .tooltip, .label {
+  pointer-events: auto; /* allow interaction */
+}
+
+.organism {
+  stroke: #333;
+  stroke-width: 2px;
+}
+
+.organism[data-group="producer"] {
+  fill: #4caf50; /* 🟢 Green for producers */
+}
+
+.organism[data-group="primary"] {
+  fill: #2196f3; /* 🔵 Blue for primary consumers */
+}
+
+.organism[data-group="secondary"] {
+  fill: #ff0000; /* 🔴 Red for secondary consumers */
+}
+
+.organism[data-group="tertiary"] {
+  fill: #673ab7; /* 🟣 Purple for tertiary consumers */
+}
+
+.organism[data-group="decomposer"] {
+  fill: #212121; /* ⚫ Black for decomposers */
+}
+
+.food-web-line[data-group="producer"] {
+  stroke: #4caf50; /* 🟢 Green for producers */
+}
+
+.food-web-line[data-group="primary"] {
+  stroke: #2196f3; /* 🔵 Blue for primary consumers */
+}
+
+.food-web-line[data-group="secondary"] {
+  stroke: #ff0000; /* 🔴 Red for secondary consumers */
+}
+
+.food-web-line[data-group="tertiary"] {
+  stroke: #673ab7; /* 🟣 Purple for tertiary consumers */
+}
+
+.food-web-line[data-group="decomposer"] {
+  stroke: #212121; /* ⚫ Black for decomposers */
+}
+
+  #image-references h2 {
+    font-size: 22px;
+    color: #003366;
+  }
+
+  #image-references ul {
+    list-style-type: disc;
+    padding-left: 20px;
+    line-height: 1.8;
+  }
+
+  #image-references a {
+    color: #007acc;
+    text-decoration: none;
+  }
+
+  #image-references a:hover {
+    text-decoration: underline;
+  }
+
+footer {
+	display: block;
+	position: absolute;
+	bottom: 0;
+	width: 100%
+}
+
+  </style>
+</head>
+<body>
+
+<div style="position: absolute; top: 20px; right: 20px; z-index: 10;">
+  <button id="toggle-decomposer" style="padding: 8px 12px; font-size: 14px; background-color: #00796b; color: white; border: none; border-radius: 5px; cursor: pointer;">
+    Toggle Decomposer Lines
+  </button>
+
+  <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); max-width: 200px;">
+    <strong>Legend</strong>
+    <ul style="list-style: none; padding-left: 0; font-size: 14px;">
+      <li><span>🟢 Producers (Phytoplankton, Kelp)</span></li>
+      <li>🔵 Primary Consumers (Zooplankton, Krill)</li>
+      <li>🔴 Secondary Consumers (Small Fish, Jellyfish)</li>
+      <li>🟣 Tertiary Consumers (Tuna, Shark)</li>
+      <li>⚫ <strong>Decomposers</strong> (Marine Bacteria, Fungi)</li>
+    </ul>
+  </div>
+</div>
+
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+  </marker>
+</defs>
+
+<div class="container">
+  <svg id="food-web" xmlns="http://www.w3.org/2000/svg">
+    <image x="200" y="70" width="60" height="60" class="organism" id="sunlight" xlink:href="images/sunshine.jpg">
+      <title>Photosynthesis is consumed by phytoplankton and kelp.</title>
+    </image>
+    <text x="230" y="145" class="label" >Sunlight</text>
+
+<!-- Arrow from Sunlight to Phytoplankton -->
+    <g class="line-group" data-from="sunlight">
+<line class="food-web-line" data-group="producer" x1="230" y1="110" x2="130" y2="180" stroke="#4caf50" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+<!-- Arrow from Sunlight to Kelp -->
+    <g class="line-group" data-from="sunlight">
+<line class="food-web-line" data-group="producer" x1="230" y1="110" x2="430" y2="110" stroke="#4caf50" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+    <!-- Producers -->
+    <image x="100" y="150" width="60" height="60" class="organism" id="phytoplankton" xlink:href="images/phytoplankton.jpg">
+      <title>Phytoplankton are the foundation of the ocean food chain.</title>
+    </image>
+    <text x="130" y="225" class="label" >Phytoplankton</text>
+
+    <image x="400" y="80" width="60" height="60" class="organism" id="kelp" xlink:href="images/kelp.jpg">
+      <title>Kelp provides shelter for marine life.</title>
+    </image>
+    <text x="430" y="155" class="label">Kelp</text>
+
+<!-- Producers to Primary Consumers -->
+    <g class="line-group" data-from="phytoplankton">
+<line class="food-web-line" data-group="primary" x1="130" y1="180" x2="470" y2="230" stroke="#2196f3" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="phytoplankton">
+<line class="food-web-line" data-group="primary"x1="430" y1="110" x2="470" y2="230" stroke="#2196f3" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="kelp">
+<line class="food-web-line" data-group="primary" x1="130" y1="180" x2="280" y2="260" stroke="#2196f3" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="kelp">
+<line class="food-web-line" data-group="primary"x1="430" y1="110" x2="280" y2="260" stroke="#2196f3" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+    <!-- Primary Consumer -->
+    <image x="450" y="200" width="60" height="60" class="organism" id="zooplankton" xlink:href="images/zooplankton.jpg">
+      <title>Zooplankton eat phytoplankton and kelp.</title>
+    </image>
+    <text x="480" y="275" class="label">Zooplankton</text>
+
+    <image x="250" y="230" width="60" height="60" class="organism" id="krill" xlink:href="images/krill.jpg">
+      <title>Krill eat phytoplankton and kelp.</title>
+    </image>
+    <text x="280" y="305" class="label">Krill</text>
+
+<!-- Primary to Secondary -->
+    <g class="line-group" data-from="zooplankton">
+<line class="food-web-line" data-group="secondary"x1="480" y1="250" x2="630" y2="130" stroke="#ff0000" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="zooplankton">
+<line class="food-web-line" data-group="secondary"x1="280" y1="260" x2="630" y2="130" stroke="#ff0000" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+    <g class="line-group" data-from="krill">
+<line class="food-web-line" data-group="secondary"x1="480" y1="250" x2="380" y2="320" stroke="#ff0000" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="krill">
+<line class="food-web-line" data-group="secondary"x1="280" y1="260" x2="380" y2="320" stroke="#ff0000" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+
+    <!-- Secondary Consumer -->
+    <image x="600" y="100" width="60" height="60" class="organism" id="smalllfish" xlink:href="images/smallfish.jpg">
+      <title>Small Fish feed on zooplankton and krill.</title>
+    </image>
+    <text x="630" y="175" class="label">Small Fish</text>
+
+    <image x="350" y="300" width="60" height="60" class="organism" id="jellyfish" xlink:href="images/jellyfish.jpg">
+      <title>Jellyfish feed on zooplankton and krill.</title>
+    </image>
+    <text x="380" y="370" class="label">Jellyfish</text>
+
+<!-- Secondary to Tertiary -->
+    <g class="line-group" data-from="smalllfish">
+<line class="food-web-line" data-group="tertiary" x1="630" y1="130" x2="730" y2="300" stroke="#673ab7" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="jellyfish">
+<line class="food-web-line" data-group="tertiary" x1="380" y1="320" x2="730" y2="300" stroke="#673ab7" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+
+    <g class="line-group" data-from="smalllfish">
+<line class="food-web-line" data-group="tertiary" x1="630" y1="130" x2="530" y2="420" stroke="#673ab7" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+    <g class="line-group" data-from="jellyfish">
+<line class="food-web-line" data-group="tertiary" x1="380" y1="320" x2="530" y2="420" stroke="#673ab7" stroke-width="2" marker-end="url(#arrow)" />
+    </g>
+
+    <!-- Tertiary Consumer -->
+    <image x="700" y="270" width="60" height="60" class="organism" id="tuna" xlink:href="images/tuna.jpg">
+      <title>Tuna eat squid and small fish.</title>
+    </image>
+    <text x="730" y="350" class="label">Tuna</text>
+
+    <image x="500" y="400" width="60" height="60" class="organism" id="shark" xlink:href="images/shark.jpg">
+      <title>Sharks are apex predators of the ocean.</title>
+    </image>
+    <text x="530" y="475" class="label">Shark</text>
+
+        <!-- Decomposers -->
+        <image x="175" y="400" width="60" height="60" class="organism" xlink:href="images/marinebacteria.jpg">
+            <title>Marine Bacteria help recycle nutrients from dead organisms.</title>
+        </image>
+        <text x="205" y="475" class="label">Marine bacteria</text>
+
+<!-- From Marine Bacteria -->
+<line x1="130" y1="180" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- phytoplankton -->
+<line x1="430" y1="110" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- kelp -->
+<line x1="470" y1="230" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- zooplankton -->
+<line x1="280" y1="260" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- krill -->
+<line x1="630" y1="130" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- small fish -->
+<line x1="380" y1="320" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- jellyfish -->
+<line x1="530" y1="420" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- shark -->
+<line x1="730" y1="300" x2="205" y2="400" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" /> <!-- tuna -->
+
+
+        <image x="870" y="80" width="60" height="60" class="organism" xlink:href="images/marinefungi.jpg">
+            <title>Marine Fungi break down organic matter.</title>
+        </image>
+        <text x="900" y="185" class="label">Marine fungi</text>
+
+<!-- To Marine Fungi -->
+<line x1="130" y1="180" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="430" y1="110" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="470" y1="230" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="280" y1="260" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="630" y1="130" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="380" y1="320" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="530" y1="420" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+<line x1="730" y1="300" x2="900" y2="110" stroke="black" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)" class="decomposer-line hidden-line" />
+
+
+<footer style=" padding: 20px; margin-top: 50px; text-align: center;">
+<div style="position: absolute; top: 330px; right: 10px; background-color: #e0f7fa; padding: 10px; border-radius: 8px; z-index: 2;">
+  <h2>Image References</h2>
+  <ul style="list-style-type: disc; padding-left: 20px;">
+    <li>
+      Phytoplankton image: <a href="https://en.wikipedia.org/wiki/Phytoplankton" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Zooplankton image: <a href="https://en.wikipedia.org/wiki/Zooplankton" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Krill image: <a href="https://en.wikipedia.org/wiki/Krill" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Kelp image: <a href="https://en.wikipedia.org/wiki/Kelp" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Small Fish image: <a href="https://en.wikipedia.org/wiki/Anchovy" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Jellyfish image: <a href="https://en.wikipedia.org/wiki/Jellyfish" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Tuna image: <a href="https://en.wikipedia.org/wiki/Tuna" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Shark image: <a href="https://en.wikipedia.org/wiki/Shark" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Marine Bacteria image: <a href="https://en.wikipedia.org/wiki/Marine_microorganisms" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Marine Fungi image: <a href="https://en.wikipedia.org/wiki/Marine_fungi" target="_blank">Wikipedia</a>
+    </li>
+    <li>
+      Sunlight image: <a href="https://simple.wikipedia.org/wiki/Sunlight" target="_blank">Wikipedia</a>
+    </li>
+  </ul>
+	<h3>Precious Staggers Week 8 Assignment</h3>
+	<h3>BIO101: Life Science I</h>
+
+</footer>
+
+  </svg>
+</div>
+
+<script>
+  const organisms = document.querySelectorAll('.organism');
+
+  organisms.forEach(org => {
+    const id = org.id;
+
+    org.addEventListener('mouseover', () => {
+      // Show connecting lines
+      document.querySelectorAll(`.line-group[data-from="${id}"]`).forEach(group => {
+        group.classList.add('active');
+
+      // Match color for the lines based on the data-group
+      const groupType = org.getAttribute('data-group');
+      const lines = group.querySelectorAll('line');
+      lines.forEach(line => {
+        line.setAttribute('stroke', getLineColor(groupType));
+      });
+      });
+
+      // Tooltip
+      const tooltip = document.createElement('div');
+      tooltip.id = 'tooltip';
+      tooltip.className = 'tooltip';
+      tooltip.textContent = org.querySelector('title')?.textContent || '';
+      document.body.appendChild(tooltip);
+
+      const rect = org.getBoundingClientRect();
+      tooltip.style.top = `${rect.top - 30}px`;
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.visibility = 'visible';
+      tooltip.style.opacity = '1';
+    });
+
+    org.addEventListener('mouseout', () => {
+      // Hide connecting lines
+      document.querySelectorAll(`.line-group[data-from="${id}"]`).forEach(group => {
+        group.classList.remove('active');
+      });
+
+      // Remove tooltip
+      const tooltip = document.getElementById('tooltip');
+      if (tooltip) tooltip.remove();
+    });
+  });
+
+// Helper function to get the color for a line based on its group
+function getLineColor(groupType) {
+  const colors = {
+    'producer': '#4caf50', // Green
+    'primary': '#2196f3', // Blue
+    'secondary': '#ff0000', // Red
+    'tertiary': '#673ab7', // Purple
+    'decomposer': '#212121', // Black
+  };
+  return colors[groupType] || '#000'; // Default to black if not found
+}
+</script>
+
+
+
+<script>
+  // Animate dashed lines on visibility
+  const decomposerLines = document.querySelectorAll('.decomposer-line');
+
+  decomposerLines.forEach(line => {
+    line.style.strokeDasharray = line.getTotalLength();
+    line.style.strokeDashoffset = line.getTotalLength();
+    line.style.transition = 'stroke-dashoffset 1s ease';
+  });
+
+// Toggle button logic
+let decomposerVisible = false;
+const toggleButton = document.getElementById('toggle-decomposer');
+
+toggleButton.addEventListener('click', () => {
+  decomposerVisible = !decomposerVisible;
+  animateDecomposerLines(decomposerVisible);
+  toggleButton.textContent = decomposerVisible ? 'Hide Decomposer Lines' : 'Show Decomposer Lines';
+});
+
+
+  function animateDecomposerLines(show) {
+    decomposerLines.forEach(line => {
+      line.style.visibility = 'visible';
+      line.style.strokeDashoffset = show ? '0' : line.getTotalLength();
+    });
+  }
+
+  const decomposerIDs = [
+    'shark', 'tuna', 'squid', 'smalllfish', 'zooplankton'
+  ];
+
+  const allDecomposerTriggers = [
+    ...document.querySelectorAll('.organism'),
+  ].filter(org => decomposerIDs.includes(org.id));
+
+  allDecomposerTriggers.forEach(org => {
+    org.addEventListener('mouseover', () => animateDecomposerLines(true));
+    org.addEventListener('mouseout', () => animateDecomposerLines(false));
+  });
+
+  // Optionally, animate lines when hovering decomposers themselves
+  const decomposers = document.querySelectorAll('[xlink\\:href*="marine"]');
+
+  decomposers.forEach(decomposer => {
+    decomposer.addEventListener('mouseover', () => animateDecomposerLines(true));
+    decomposer.addEventListener('mouseout', () => animateDecomposerLines(false));
+  });
+</script>
+
+</body>
+</html>
+
